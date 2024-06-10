@@ -1,8 +1,21 @@
-# ignore virtualenv
+# Virtual environments
 venv/
 
-# ignore dev script
+# Dev scripts and secrets
 bin/dev
-
-# ignore secrets
 secrets.env
+
+# Git and version control
+.git
+.gitignore
+
+# IDE-specific files
+.idea/
+.vscode/
+
+# Cache and temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+*.tmp

@@ -1,9 +1,9 @@
 <b>What is that?</b>
-You can speak with the powerful GPT3 AI here!
+You can speak with the powerful GPT AI here!
 <b>How?</b>
 Just reply to any of my messages.
 <b>Note:</b>
-This is <b>NOT</b> Chat-GPT but GPT3.5 (gpt-3.5-turbo).
+This is <b>NOT</b> Chat-GPT
 To speak with Chat-GPT, please use:
 https://chat.openai.com/chat instead.
 <b>Available commands:</b>
@@ -12,4 +12,4 @@ https://chat.openai.com/chat instead.
 /start - start conversation
 /imagine *prompt* - generate a picture using DALLE.
 <b>Bot source code</b>
-https://github.com/pan1c/yet-another-gpt3-bot/
+https://github.com/pan1c/itchat-gpt-bot

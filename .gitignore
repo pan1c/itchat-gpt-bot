@@ -1,9 +1,9 @@
-# Byte-compiled / optimized / DLL files
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Environments
+# Virtual environments
 .env
 .venv
 env/
@@ -12,23 +12,22 @@ ENV/
 env.bak/
 venv.bak/
 
-# Logs
+# Logs and temporary files
 *.log
+*.tmp
+
+# Secrets
+secrets.env
+config.json
 
 # IDE specific files
 .idea/
 .vscode/
 
-
-bin/dev/test.sh
-secrets.env
-config.json
-
-myapp/data/welcome.txt
-
-
-#Linters
-
+# Linters and formatters
 .pre-commit-config.yaml
 .pylintrc
 .style.yapf
+
+# Temporary data
+app/data/welcome.txt
