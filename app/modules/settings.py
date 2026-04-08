@@ -2,11 +2,21 @@ import os
 from pathlib import Path
 from .logging import logger
 
+
+def _to_bool(value: str, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Load environment variables with defaults
 openai_api_key = os.getenv("OPENAI_API_KEY")
 telegram_api_token = os.getenv("TELEGRAM_BOT_TOKEN")
 gpt_system_role = os.getenv("GPT_SYSTEM_ROLE", "You are a helpful assistant.")
-gpt_model_name = os.getenv("GPT_MODEL_NAME", "gpt-3.5-turbo-1106")
+gpt_model_name = os.getenv("GPT_MODEL_NAME", "gpt-5.4-nano")
+openai_image_model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
+openai_use_responses = _to_bool(os.getenv("OPENAI_USE_RESPONSES"), default=True)
+openai_enable_chat_fallback = _to_bool(os.getenv("OPENAI_ENABLE_CHAT_FALLBACK"), default=True)
 log_level = os.getenv("LOG_LEVEL", "INFO")
 allowed_chat_ids = os.getenv("ALLOWED_CHAT_IDS", "any").split(",")
 locations_file_name = os.getenv("LOCATIONS_FILE_NAME", "/tmp/data/locations.csv")
@@ -32,5 +42,8 @@ if welcome_file.exists():
 logger.info("Application settings loaded:")
 logger.info(f"gpt_system_role: {gpt_system_role}")
 logger.info(f"gpt_model_name: {gpt_model_name}")
+logger.info(f"openai_image_model: {openai_image_model}")
+logger.info(f"openai_use_responses: {openai_use_responses}")
+logger.info(f"openai_enable_chat_fallback: {openai_enable_chat_fallback}")
 logger.info(f"log_level: {log_level}")
 logger.info(f"allowed_chat_ids: {allowed_chat_ids}")

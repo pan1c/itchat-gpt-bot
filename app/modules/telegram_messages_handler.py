@@ -1,4 +1,5 @@
 import re
+from io import BytesIO
 from telegram import Update, ForceReply
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler
 from .settings import telegram_api_token, help_text, welcome_text, allowed_chat_ids
@@ -84,8 +85,8 @@ async def image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
     # Generate the image
-    image_url, revised_prompt, error_message = generate_image(prompt)
-    if not image_url:
+    image_payload, revised_prompt, error_message = generate_image(prompt)
+    if not image_payload:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f"Error: {error_message or 'Failed to generate image'}"
@@ -93,11 +94,16 @@ async def image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     # Send the generated image
+    caption_text = revised_prompt or "Image generated."
+    photo = image_payload
+    if isinstance(image_payload, (bytes, bytearray)):
+        photo = BytesIO(image_payload)
+        photo.name = "generated.png"
+
     await context.bot.send_photo(
         chat_id=update.effective_chat.id,
-        photo=image_url,
-        parse_mode="MarkdownV2",
-        caption = f"```\n{revised_prompt}\n```\n",
+        photo=photo,
+        caption=caption_text,
     )
 
 

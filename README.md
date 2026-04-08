@@ -1,6 +1,6 @@
 # itchat-gpt-bot
 
-Telegram bot that allows you to speak with gpt-3.5-turbo model.
+Telegram bot that allows you to chat with OpenAI models and generate images.
 --
 
 ## Prerequisite
@@ -16,7 +16,7 @@ https://platform.openai.com/docs/quickstart/build-your-application
 ###### Pure python
 ```
  pip install -r requirements.txt
- TELEGRAM_BOT_TOKEN=<your tg token> OPENAI_API_KEY=<your open AI token> python3 app.py
+ TELEGRAM_BOT_TOKEN=<your tg token> OPENAI_API_KEY=<your open AI token> python3 app/main.py
 ```
 
 ###### Docker
@@ -32,3 +32,16 @@ Additional options supported, please see settings.py
 ```
 docker compose up
 ```
+
+## OpenAI integration defaults
+
+- `GPT_MODEL_NAME` default: `gpt-5.4-nano` (overrideable).
+- `OPENAI_USE_RESPONSES` default: `true`.
+- `OPENAI_ENABLE_CHAT_FALLBACK` default: `true`.
+- `OPENAI_IMAGE_MODEL` default: `gpt-image-1`.
+
+### Migration-safe behavior
+
+- The bot uses the OpenAI Responses API first for text generation.
+- If Responses is unavailable or returns no text, Chat Completions is used as a fallback by default.
+- Existing environment variables continue to work (`OPENAI_API_KEY`, `GPT_MODEL_NAME`, etc.).
