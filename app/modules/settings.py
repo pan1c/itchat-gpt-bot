@@ -9,6 +9,15 @@ def _to_bool(value: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _to_int(value: str, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value.strip())
+    except ValueError:
+        return default
+
+
 # Load environment variables with defaults
 openai_api_key = os.getenv("OPENAI_API_KEY")
 telegram_api_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -17,6 +26,7 @@ gpt_model_name = os.getenv("GPT_MODEL_NAME", "gpt-5.4-nano")
 openai_image_model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 openai_use_responses = _to_bool(os.getenv("OPENAI_USE_RESPONSES"), default=True)
 openai_enable_chat_fallback = _to_bool(os.getenv("OPENAI_ENABLE_CHAT_FALLBACK"), default=True)
+gpt_max_history_turns = _to_int(os.getenv("GPT_MAX_HISTORY_TURNS"), default=10)
 log_level = os.getenv("LOG_LEVEL", "INFO")
 allowed_chat_ids = os.getenv("ALLOWED_CHAT_IDS", "any").split(",")
 locations_file_name = os.getenv("LOCATIONS_FILE_NAME", "/tmp/data/locations.csv")
@@ -45,5 +55,6 @@ logger.info(f"gpt_model_name: {gpt_model_name}")
 logger.info(f"openai_image_model: {openai_image_model}")
 logger.info(f"openai_use_responses: {openai_use_responses}")
 logger.info(f"openai_enable_chat_fallback: {openai_enable_chat_fallback}")
+logger.info(f"gpt_max_history_turns: {gpt_max_history_turns}")
 logger.info(f"log_level: {log_level}")
 logger.info(f"allowed_chat_ids: {allowed_chat_ids}")

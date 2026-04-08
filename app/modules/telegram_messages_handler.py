@@ -1,9 +1,8 @@
-import re
 from io import BytesIO
 from telegram import Update, ForceReply
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler
 from .settings import telegram_api_token, help_text, welcome_text, allowed_chat_ids
-from .openai_conversation_handler import generate_response, generate_image
+from .openai_conversation_handler import generate_response, generate_image, reset_conversation
 from .postcode_handler import process_postcode
 from .logging import logger
 
@@ -53,14 +52,30 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     question = update.message.text
-    prev_message = (
-        f"Previous your message was: {update.message.reply_to_message.text}"
-        if update.message.reply_to_message
-        else ""
-    )
     logger.info(f"Question: {question}")
-    response_text = await generate_response(question, prev_message)
+    response_text = await generate_response(
+        question=question,
+        chat_id=update.effective_chat.id,
+        user_id=update.effective_user.id,
+    )
     await update.message.reply_html(response_text, disable_web_page_preview=True)
+
+
+async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Clear the GPT conversation context for the current user in the current chat."""
+    if not check_group(update):
+        return
+
+    was_cleared = reset_conversation(
+        chat_id=update.effective_chat.id,
+        user_id=update.effective_user.id,
+    )
+    response_text = (
+        "Conversation context cleared."
+        if was_cleared
+        else "There was no saved conversation context for you in this chat."
+    )
+    await update.message.reply_text(response_text)
 
 
 async def image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -131,6 +146,7 @@ def main() -> None:
     application.add_handler(CommandHandler("welcome", welcome_message))  # Added /welcome command
     application.add_handler(CommandHandler("postcode", postcode))
     application.add_handler(CommandHandler("imagine", image_generation))
+    application.add_handler(CommandHandler("reset", reset_command))
 
     # Add handler for text messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))

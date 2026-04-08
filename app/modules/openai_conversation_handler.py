@@ -10,17 +10,47 @@ from .settings import (
     openai_enable_chat_fallback,
     openai_image_model,
     openai_use_responses,
+    gpt_max_history_turns,
 )
 
+ConversationKey = tuple[int, int]
+Message = dict[str, str]
+_conversation_history: dict[ConversationKey, list[Message]] = {}
 
-def _build_messages(question: str, prev_message: str) -> list[dict[str, str]]:
-    messages = [
-        {"role": "system", "content": gpt_system_role},
-        {"role": "user", "content": question},
-    ]
-    if prev_message:
-        messages.append({"role": "assistant", "content": prev_message})
-    return messages
+
+def _get_conversation_key(chat_id: int, user_id: int) -> ConversationKey:
+    return chat_id, user_id
+
+
+def _get_history(chat_id: int, user_id: int) -> list[Message]:
+    key = _get_conversation_key(chat_id, user_id)
+    return _conversation_history.setdefault(key, [])
+
+
+def _trim_history(history: list[Message]) -> None:
+    max_messages = max(gpt_max_history_turns, 0) * 2
+    if max_messages == 0:
+        history.clear()
+        return
+    if len(history) > max_messages:
+        del history[:-max_messages]
+
+
+def _build_messages(chat_id: int, user_id: int, question: str) -> list[Message]:
+    history = list(_get_history(chat_id, user_id))
+    return [{"role": "system", "content": gpt_system_role}, *history, {"role": "user", "content": question}]
+
+
+def _append_history(chat_id: int, user_id: int, question: str, response_text: str) -> None:
+    history = _get_history(chat_id, user_id)
+    history.append({"role": "user", "content": question})
+    history.append({"role": "assistant", "content": response_text})
+    _trim_history(history)
+
+
+def reset_conversation(chat_id: int, user_id: int) -> bool:
+    key = _get_conversation_key(chat_id, user_id)
+    return _conversation_history.pop(key, None) is not None
 
 
 def _extract_response_text(response) -> str:
@@ -46,19 +76,20 @@ def _chat_completions_response(client: OpenAI, messages: list[dict[str, str]]) -
     return (response.choices[0].message.content or "").strip()
 
 
-async def generate_response(question: str, prev_message: str) -> str:
+async def generate_response(question: str, chat_id: int, user_id: int) -> str:
     """Use OpenAI to generate a response to the given question."""
     if not question:
         return "You didn't ask your question. Try /help"
 
     client = OpenAI(api_key=openai_api_key)
-    messages = _build_messages(question, prev_message)
+    messages = _build_messages(chat_id, user_id, question)
 
     if openai_use_responses:
         try:
             response = client.responses.create(model=gpt_model_name, input=messages)
             response_text = _extract_response_text(response)
             if response_text:
+                _append_history(chat_id, user_id, question, response_text)
                 return response_text
             logger.warning("Responses API returned empty text; evaluating fallback.")
         except openai.OpenAIError as err:
@@ -68,7 +99,12 @@ async def generate_response(question: str, prev_message: str) -> str:
 
     if openai_enable_chat_fallback:
         try:
-            return _chat_completions_response(client, messages)
+            response_text = _chat_completions_response(client, messages)
+            if response_text:
+                _append_history(chat_id, user_id, question, response_text)
+                return response_text
+            logger.warning("Chat Completions fallback returned empty text.")
+            return "No response generated. Please try again later."
         except openai.OpenAIError as err:
             logger.error("Chat Completions fallback failed: %s", err)
             return "OpenAI API error. Please try again later."
