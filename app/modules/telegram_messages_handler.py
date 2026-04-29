@@ -4,6 +4,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, filters, Mes
 from .settings import telegram_api_token, help_text, welcome_text, allowed_chat_ids
 from .openai_conversation_handler import generate_response, generate_image, reset_conversation
 from .postcode_handler import process_postcode
+from .telegram_markdown import markdown_to_telegram_messages
 from .logging import logger
 
 def get_message_from_command(text: str) -> str:
@@ -58,7 +59,12 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         chat_id=update.effective_chat.id,
         user_id=update.effective_user.id,
     )
-    await update.message.reply_html(response_text, disable_web_page_preview=True)
+    for text, entities in markdown_to_telegram_messages(response_text):
+        await update.message.reply_text(
+            text,
+            entities=entities,
+            disable_web_page_preview=True,
+        )
 
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
