@@ -1,5 +1,5 @@
 from io import BytesIO
-from telegram import Update, ForceReply
+from telegram import Update, ForceReply, MessageEntity
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler
 from .settings import telegram_api_token, help_text, welcome_text, allowed_chat_ids
 from .openai_conversation_handler import generate_response, generate_image, reset_conversation
@@ -47,12 +47,40 @@ async def welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
 
 
+def _extract_activation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple[bool, str]:
+    """Decide if the bot should respond, and strip the mention from the prompt."""
+    message = update.message
+    text = message.text or ""
+
+    # Is current message a reply to a previous bot message?
+    bot_id = context.bot.id
+    reply = message.reply_to_message
+    if reply and reply.from_user and reply.from_user.id == bot_id:
+        return True, text
+
+    bot_username = f"@{context.bot.username}"
+    for entity in message.entities or []:
+        if entity.type != MessageEntity.MENTION:
+            continue
+        chunk = text[entity.offset : entity.offset + entity.length]
+        if chunk.lower() == bot_username:
+            cleaned = (text[: entity.offset] + text[entity.offset + entity.length :]).strip()
+            return True, cleaned
+
+    return False, text
+
+
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming messages and generate a GPT response."""
     if not check_group(update):
         return
 
-    question = update.message.text
+    activated, question = _extract_activation(update, context)
+    if not activated:
+        return
+    if not question:
+        question = "Hi"
+
     logger.info(f"Question: {question}")
     response_text = await generate_response(
         question=question,
