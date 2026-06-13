@@ -7,9 +7,42 @@ from .postcode_handler import process_postcode
 from .telegram_markdown import markdown_to_telegram_messages
 from .logging import logger
 
+MAX_IMAGE_CAPTION_UTF16_LENGTH = 1024
+IMAGE_CAPTION_PREFIX = "On this picture:\n"
+
+
 def get_message_from_command(text: str) -> str:
     """Extract the message from a command."""
     return text.split(" ", 1)[1].strip() if " " in text else ""
+
+
+def _utf16_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _build_image_caption(description: str) -> tuple[str, list[MessageEntity]]:
+    max_description_length = MAX_IMAGE_CAPTION_UTF16_LENGTH - _utf16_length(IMAGE_CAPTION_PREFIX)
+    suffix = "..."
+    suffix_length = _utf16_length(suffix)
+
+    if _utf16_length(description) > max_description_length:
+        remaining_length = max_description_length - suffix_length
+        truncated = []
+        for character in description:
+            character_length = _utf16_length(character)
+            if character_length > remaining_length:
+                break
+            truncated.append(character)
+            remaining_length -= character_length
+        description = "".join(truncated) + suffix
+
+    caption = f"{IMAGE_CAPTION_PREFIX}{description}"
+    entity = MessageEntity(
+        type="blockquote",
+        offset=_utf16_length(IMAGE_CAPTION_PREFIX),
+        length=_utf16_length(description),
+    )
+    return caption, [entity]
 
 
 def check_group(update: Update) -> bool:
@@ -143,7 +176,7 @@ async def image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     # Send the generated image
-    caption_text = revised_prompt or "Image generated."
+    caption_text, caption_entities = _build_image_caption(revised_prompt or prompt)
     photo = image_payload
     if isinstance(image_payload, (bytes, bytearray)):
         photo = BytesIO(image_payload)
@@ -153,6 +186,7 @@ async def image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         chat_id=update.effective_chat.id,
         photo=photo,
         caption=caption_text,
+        caption_entities=caption_entities,
     )
 
 

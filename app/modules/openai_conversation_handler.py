@@ -8,7 +8,6 @@ from .settings import (
     gpt_system_role,
     openai_api_key,
     openai_enable_chat_fallback,
-    openai_image_model,
     openai_use_responses,
     gpt_max_history_turns,
 )
@@ -118,25 +117,32 @@ async def generate_response(question: str, chat_id: int, user_id: int) -> str:
 def generate_image(prompt):
     client = OpenAI(api_key=openai_api_key)
     try:
-        response = client.images.generate(
-            model=openai_image_model,
-            prompt=prompt,
-            size="1024x1024",
-            n=1,
+        response = client.responses.create(
+            model=gpt_model_name,
+            input=prompt,
+            tools=[
+                {
+                    "type": "image_generation",
+                    "action": "generate",
+                    "size": "1024x1024",
+                }
+            ],
         )
-        image_item = response.data[0]
-        image_url = getattr(image_item, "url", None)
-        image_b64 = getattr(image_item, "b64_json", None)
-        revised_prompt = getattr(image_item, "revised_prompt", "")
+        image_calls = [
+            output
+            for output in response.output
+            if getattr(output, "type", None) == "image_generation_call"
+        ]
+        if not image_calls:
+            return None, None, "Image generation completed without an image result."
 
-        if image_url:
-            return image_url, revised_prompt, None
+        image_call = image_calls[0]
+        image_b64 = getattr(image_call, "result", None)
+        revised_prompt = getattr(image_call, "revised_prompt", "")
+        if not image_b64:
+            return None, None, "Image generated, but no image bytes were returned."
 
-        if image_b64:
-            image_bytes = base64.b64decode(image_b64)
-            return image_bytes, revised_prompt, None
-
-        return None, None, "Image generated, but no URL or image bytes were returned."
+        return base64.b64decode(image_b64), revised_prompt, None
     except openai.OpenAIError as err:
         error_msg = f"OpenAI image API error: {err}"
         logger.error(error_msg)

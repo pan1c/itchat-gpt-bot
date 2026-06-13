@@ -38,7 +38,7 @@ docker compose up
 - `GPT_MODEL_NAME` default: `gpt-5.4-nano` (overrideable).
 - `OPENAI_USE_RESPONSES` default: `true`.
 - `OPENAI_ENABLE_CHAT_FALLBACK` default: `true`.
-- `OPENAI_IMAGE_MODEL` default: `gpt-image-1`.
+- `/imagine` uses the Responses API image generation tool, which selects the GPT Image model automatically.
 
 ### Migration-safe behavior
 
