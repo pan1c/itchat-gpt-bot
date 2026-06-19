@@ -1,0 +1,27 @@
+name: Deploy to skynet
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-itchat-gpt-bot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SKYNET_HOST }}
+          username: ${{ secrets.SKYNET_USER }}
+          key: ${{ secrets.SKYNET_SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /root/itchat-gpt-bot
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose up -d --build --remove-orphans
