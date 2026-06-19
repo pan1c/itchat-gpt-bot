@@ -18,7 +18,6 @@ jobs:
           host: ${{ secrets.SKYNET_HOST }}
           username: ${{ secrets.SKYNET_USER }}
           key: ${{ secrets.SKYNET_SSH_PRIVATE_KEY }}
-          script_stop: true
           script: |
             set -e
             cd /root/itchat-gpt-bot
