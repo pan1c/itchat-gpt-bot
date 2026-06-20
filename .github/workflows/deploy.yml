@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.SKYNET_SSH_PRIVATE_KEY }}
           script: |
             set -e
-            cd /root/itchat-gpt-bot
+            cd "$HOME/itchat-gpt-bot"
             git fetch origin main
             git reset --hard origin/main
             docker compose up -d --build --remove-orphans
