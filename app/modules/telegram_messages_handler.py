@@ -9,6 +9,7 @@ from .logging import logger
 
 MAX_IMAGE_CAPTION_UTF16_LENGTH = 1024
 IMAGE_CAPTION_PREFIX = "On this picture:\n"
+MAX_REPLY_CONTEXT_LENGTH = 1500
 
 
 def get_message_from_command(text: str) -> str:
@@ -43,6 +44,47 @@ def _build_image_caption(description: str) -> tuple[str, list[MessageEntity]]:
         length=_utf16_length(description),
     )
     return caption, [entity]
+
+
+def _truncate_text(text: str, max_length: int) -> str:
+    if len(text) <= max_length:
+        return text
+    return text[: max_length - 3].rstrip() + "..."
+
+
+def _get_user_label(user) -> str:
+    if not user:
+        return "Unknown user"
+
+    name_parts = [part for part in (user.first_name, user.last_name) if part]
+    display_name = " ".join(name_parts) or user.username or str(user.id)
+    if user.username:
+        return f"{display_name} (@{user.username})"
+    return display_name
+
+
+def _get_message_text(message) -> str:
+    return (message.text or message.caption or "").strip()
+
+
+def _add_reply_context(message, question: str) -> str:
+    reply = message.reply_to_message
+    if not reply:
+        return question
+
+    reply_text = _get_message_text(reply)
+    if not reply_text:
+        return question
+
+    author = _get_user_label(reply.from_user)
+    reply_context = _truncate_text(reply_text, MAX_REPLY_CONTEXT_LENGTH)
+    user_message = question.strip() or "Please respond to the replied message."
+    return (
+        "The user replied to this Telegram message:\n"
+        f"From: {author}\n"
+        f"Message: {reply_context}\n\n"
+        f"User message: {user_message}"
+    )
 
 
 def check_group(update: Update) -> bool:
@@ -111,6 +153,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     activated, question = _extract_activation(update, context)
     if not activated:
         return
+    question = _add_reply_context(update.message, question)
     if not question:
         question = "Hi"
 
