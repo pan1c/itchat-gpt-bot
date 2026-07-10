@@ -1,5 +1,6 @@
 import openai
 import base64
+import json
 from openai import OpenAI
 
 from .logging import logger
@@ -70,6 +71,39 @@ def _extract_response_text(response) -> str:
     return "\n".join(collected_text).strip()
 
 
+def _response_output_summary(response) -> str:
+    output = getattr(response, "output", None) or []
+    summary = []
+    for item in output:
+        item_type = getattr(item, "type", None) or type(item).__name__
+        status = getattr(item, "status", None)
+        if status:
+            summary.append(f"{item_type}:{status}")
+        else:
+            summary.append(str(item_type))
+    return ", ".join(summary) or "empty output"
+
+
+def _dump_response_for_log(response) -> str:
+    if hasattr(response, "model_dump"):
+        payload = response.model_dump(mode="json")
+    elif hasattr(response, "to_dict"):
+        payload = response.to_dict()
+    else:
+        payload = str(response)
+    return json.dumps(payload, ensure_ascii=False, default=str)[:4000]
+
+
+def _image_generation_error(response) -> str:
+    response_text = _extract_response_text(response)
+    if response_text:
+        return "OpenAI returned no image. Response: " + response_text
+    return (
+        "OpenAI returned no image and no explanation. "
+        f"Response output: {_response_output_summary(response)}"
+    )
+
+
 def _chat_completions_response(client: OpenAI, messages: list[dict[str, str]]) -> str:
     response = client.chat.completions.create(model=gpt_model_name, messages=messages)
     return (response.choices[0].message.content or "").strip()
@@ -134,12 +168,22 @@ def generate_image(prompt):
             if getattr(output, "type", None) == "image_generation_call"
         ]
         if not image_calls:
-            return None, None, "Image generation completed without an image result."
+            logger.warning(
+                "Image generation returned no image. output=%s text=%r response=%s",
+                _response_output_summary(response),
+                _extract_response_text(response),
+                _dump_response_for_log(response),
+            )
+            return None, None, _image_generation_error(response)
 
         image_call = image_calls[0]
         image_b64 = getattr(image_call, "result", None)
         revised_prompt = getattr(image_call, "revised_prompt", "")
         if not image_b64:
+            logger.warning(
+                "Image generation call had no result. response=%s",
+                _dump_response_for_log(response),
+            )
             return None, None, "Image generated, but no image bytes were returned."
 
         return base64.b64decode(image_b64), revised_prompt, None
