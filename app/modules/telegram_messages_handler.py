@@ -6,6 +6,7 @@ from .openai_conversation_handler import generate_response, generate_image, rese
 from .postcode_handler import process_postcode
 from .telegram_markdown import markdown_to_telegram_messages
 from .logging import logger
+from .message_checker import check_message
 
 MAX_IMAGE_CAPTION_UTF16_LENGTH = 1024
 IMAGE_CAPTION_PREFIX = "On this picture:\n"
@@ -150,6 +151,9 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not check_group(update):
         return
 
+    if await check_message(update.message):
+        return
+
     activated, question = _extract_activation(update, context)
     if not activated:
         return
@@ -260,7 +264,7 @@ def main() -> None:
     application.add_handler(CommandHandler("reset", reset_command))
 
     # Add handler for text messages
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
+    application.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | filters.CAPTION, handle_messages))
 
     # Add handler for new chat members
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_message))
