@@ -35,7 +35,10 @@ docker compose up
 
 ## OpenAI integration defaults
 
-- `GPT_MODEL_NAME` default: `gpt-5.4-nano` (overrideable).
+- `GPT_MODEL_NAME` default: `gpt-6-luna` (overrideable).
+- With `gpt-6-luna`, reasoning effort is explicitly set to `none` for text,
+  Chat Completions fallback, and `/imagine` requests. Other model overrides
+  retain their API-default reasoning behavior.
 - `OPENAI_USE_RESPONSES` default: `true`.
 - `OPENAI_ENABLE_CHAT_FALLBACK` default: `true`.
 - `/imagine` uses the Responses API image generation tool, which selects the GPT Image model automatically.

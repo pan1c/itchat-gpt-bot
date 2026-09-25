@@ -92,7 +92,7 @@ def check_group(update: Update) -> bool:
     """Check if the user's chat ID is allowed."""
     chat_id_str = str(update.message.chat_id)
     if "any" in allowed_chat_ids or chat_id_str in allowed_chat_ids:
-        logger.info(f"Chat ID {chat_id_str} allowed")
+        logger.debug(f"Chat ID {chat_id_str} allowed")
         return True
     logger.info(f"Chat ID {chat_id_str} not allowed")
     return False  # Fixed indentation

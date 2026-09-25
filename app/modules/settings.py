@@ -22,7 +22,7 @@ def _to_int(value: str, default: int) -> int:
 openai_api_key = os.getenv("OPENAI_API_KEY")
 telegram_api_token = os.getenv("TELEGRAM_BOT_TOKEN")
 gpt_system_role = os.getenv("GPT_SYSTEM_ROLE", "You are a helpful assistant.")
-gpt_model_name = os.getenv("GPT_MODEL_NAME", "gpt-5.4-nano")
+gpt_model_name = os.getenv("GPT_MODEL_NAME", "gpt-6-luna")
 openai_use_responses = _to_bool(os.getenv("OPENAI_USE_RESPONSES"), default=True)
 openai_enable_chat_fallback = _to_bool(os.getenv("OPENAI_ENABLE_CHAT_FALLBACK"), default=True)
 gpt_max_history_turns = _to_int(os.getenv("GPT_MAX_HISTORY_TURNS"), default=10)

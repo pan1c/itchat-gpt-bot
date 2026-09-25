@@ -105,7 +105,10 @@ def _image_generation_error(response) -> str:
 
 
 def _chat_completions_response(client: OpenAI, messages: list[dict[str, str]]) -> str:
-    response = client.chat.completions.create(model=gpt_model_name, messages=messages)
+    options = {"reasoning_effort": "none"} if gpt_model_name == "gpt-6-luna" else {}
+    response = client.chat.completions.create(
+        model=gpt_model_name, messages=messages, **options
+    )
     return (response.choices[0].message.content or "").strip()
 
 
@@ -119,7 +122,10 @@ async def generate_response(question: str, chat_id: int, user_id: int) -> str:
 
     if openai_use_responses:
         try:
-            response = client.responses.create(model=gpt_model_name, input=messages)
+            options = {"reasoning": {"effort": "none"}} if gpt_model_name == "gpt-6-luna" else {}
+            response = client.responses.create(
+                model=gpt_model_name, input=messages, **options
+            )
             response_text = _extract_response_text(response)
             if response_text:
                 _append_history(chat_id, user_id, question, response_text)
@@ -151,6 +157,7 @@ async def generate_response(question: str, chat_id: int, user_id: int) -> str:
 def generate_image(prompt):
     client = OpenAI(api_key=openai_api_key)
     try:
+        options = {"reasoning": {"effort": "none"}} if gpt_model_name == "gpt-6-luna" else {}
         response = client.responses.create(
             model=gpt_model_name,
             input=prompt,
@@ -161,6 +168,7 @@ def generate_image(prompt):
                     "size": "1024x1024",
                 }
             ],
+            **options,
         )
         image_calls = [
             output

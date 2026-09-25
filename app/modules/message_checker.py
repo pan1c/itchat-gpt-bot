@@ -33,9 +33,14 @@ class CheckDefinition:
     false_criteria: str
     response: str
     threshold: float | None = None
+    enabled: bool = True
 
     @classmethod
     def from_dict(cls, value: dict):
+        enabled_value = value.get("enabled", True)
+        if not isinstance(enabled_value, bool):
+            raise ValueError("Message check enabled must be true or false")
+
         check = cls(
             name=str(value["name"]).strip(),
             instructions=str(value["instructions"]).strip(),
@@ -45,6 +50,7 @@ class CheckDefinition:
             threshold=(
                 None if value.get("threshold") is None else float(value["threshold"])
             ),
+            enabled=enabled_value,
         )
         if not all(
             (
@@ -65,12 +71,38 @@ class CheckDefinition:
 
 
 @dataclass(frozen=True)
+class CombinationDefinition:
+    checks: tuple[str, ...]
+    response: str
+    threshold: float | None = None
+
+    @classmethod
+    def from_dict(cls, value: dict):
+        names = value["checks"]
+        if not isinstance(names, list) or len(names) < 2:
+            raise ValueError("Message check combination requires at least two checks")
+        normalized_names = tuple(str(name).strip() for name in names)
+        response = str(value["response"]).strip()
+        threshold = (
+            None if value.get("threshold") is None else float(value["threshold"])
+        )
+        if not all(normalized_names) or not response:
+            raise ValueError("Message check combination fields must not be empty")
+        if len(normalized_names) != len(set(normalized_names)):
+            raise ValueError("Message check combination names must be unique")
+        if threshold is not None and not _valid_probability(threshold):
+            raise ValueError("Invalid message check combination threshold")
+        return cls(normalized_names, response, threshold)
+
+
+@dataclass(frozen=True)
 class Config:
     api_key: str
     checks: tuple[CheckDefinition, ...]
     model: str = "jev-latest"
     threshold: float = 0.8
     timeout: float = 5.0
+    combinations: tuple[CombinationDefinition, ...] = ()
 
     @classmethod
     def from_env(cls):
@@ -87,8 +119,8 @@ class Config:
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("MESSAGE_CHECK_TIMEOUT_SECONDS must be positive")
 
-        checks = load_checks(checks_file)
-        return cls(key, checks, model, threshold, timeout)
+        checks, combinations = load_configuration(checks_file)
+        return cls(key, checks, model, threshold, timeout, combinations)
 
 
 def _valid_probability(value) -> bool:
@@ -100,16 +132,46 @@ def _valid_probability(value) -> bool:
     )
 
 
-def load_checks(path: Path) -> tuple[CheckDefinition, ...]:
+def load_configuration(
+    path: Path,
+) -> tuple[tuple[CheckDefinition, ...], tuple[CombinationDefinition, ...]]:
     document = json.loads(path.read_text(encoding="utf-8"))
     values = document.get("checks")
     if not isinstance(values, list) or not values:
         raise ValueError("Message checks file must contain a non-empty checks list")
 
-    checks = tuple(CheckDefinition.from_dict(value) for value in values)
-    names = [check.name for check in checks]
+    configured_checks = tuple(CheckDefinition.from_dict(value) for value in values)
+    names = [check.name for check in configured_checks]
     if len(names) != len(set(names)):
         raise ValueError("Message check names must be unique")
+
+    enabled_checks = tuple(check for check in configured_checks if check.enabled)
+    if not enabled_checks:
+        raise ValueError("Message checks file must enable at least one check")
+
+    combination_values = document.get("combinations", [])
+    if not isinstance(combination_values, list):
+        raise ValueError("Message check combinations must be a list")
+    combinations = tuple(
+        CombinationDefinition.from_dict(value) for value in combination_values
+    )
+    enabled_names = {check.name for check in enabled_checks}
+    combination_keys = []
+    for combination in combinations:
+        unknown_names = set(combination.checks) - enabled_names
+        if unknown_names:
+            raise ValueError(
+                "Message check combination references disabled or unknown checks: "
+                + ", ".join(sorted(unknown_names))
+            )
+        combination_keys.append(frozenset(combination.checks))
+    if len(combination_keys) != len(set(combination_keys)):
+        raise ValueError("Message check combinations must be unique")
+    return enabled_checks, combinations
+
+
+def load_checks(path: Path) -> tuple[CheckDefinition, ...]:
+    checks, _ = load_configuration(path)
     return checks
 
 
@@ -140,6 +202,19 @@ def parse_probabilities(payload: dict, checks) -> dict[str, float]:
             raise ValueError(f"Invalid probability for message check {check.name!r}")
         probabilities[check.name] = float(value)
     return probabilities
+
+
+def _format_check_response(check: CheckDefinition, probability: float) -> str:
+    return f"{check.response} (score: {probability:.2f})"
+
+
+def _format_combination_response(
+    combination: CombinationDefinition, probabilities: dict[str, float]
+) -> str:
+    scores = ", ".join(
+        f"{name}: {probabilities[name]:.2f}" for name in combination.checks
+    )
+    return f"{combination.response} ({scores})"
 
 
 def _load_config():
@@ -197,7 +272,7 @@ async def check_message(message) -> bool:
     for check in _config.checks:
         probability = probabilities[check.name]
         threshold = check.effective_threshold(_config.threshold)
-        logger.info(
+        logger.debug(
             "Message check result chat=%s message=%s check=%s probability=%.3f",
             message.chat_id,
             message.message_id,
@@ -205,17 +280,53 @@ async def check_message(message) -> bool:
             probability,
         )
         if probability >= threshold:
-            matches.append(check)
-
-    for check in matches:
-        try:
-            await message.reply_text(check.response)
-        except Exception as exc:
-            logger.warning(
-                "Message check reply failed chat=%s message=%s check=%s error=%s",
+            logger.info(
+                "Message check matched chat=%s message=%s check=%s probability=%.3f",
                 message.chat_id,
                 message.message_id,
                 check.name,
+                probability,
+            )
+            matches.append(check)
+
+    checks_by_name = {check.name: check for check in _config.checks}
+    combined_names = set()
+    responses = []
+    for combination in _config.combinations:
+        combination_matches = all(
+            probabilities[name]
+            >= (
+                combination.threshold
+                if combination.threshold is not None
+                else checks_by_name[name].effective_threshold(_config.threshold)
+            )
+            for name in combination.checks
+        )
+        if combination_matches:
+            logger.info(
+                "Message check combination matched chat=%s message=%s checks=%s",
+                message.chat_id,
+                message.message_id,
+                "+".join(combination.checks),
+            )
+            responses.append(
+                _format_combination_response(combination, probabilities)
+            )
+            combined_names.update(combination.checks)
+    responses.extend(
+        _format_check_response(check, probabilities[check.name])
+        for check in matches
+        if check.name not in combined_names
+    )
+
+    for response in responses:
+        try:
+            await message.reply_text(response)
+        except Exception as exc:
+            logger.warning(
+                "Message check reply failed chat=%s message=%s error=%s",
+                message.chat_id,
+                message.message_id,
                 type(exc).__name__,
             )
-    return bool(matches)
+    return bool(responses)
